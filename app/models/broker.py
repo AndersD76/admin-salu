@@ -1,7 +1,11 @@
 from sqlalchemy import Column, String, Integer, Float, DateTime, Text, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import Base
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class Broker(Base):
@@ -40,8 +44,8 @@ class Broker(Base):
     rating = Column(Float, nullable=True)
     review_count = Column(Integer, default=0, nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
 
     # Relationships
     user = relationship("User", back_populates="broker_profile")

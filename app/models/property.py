@@ -1,7 +1,11 @@
 from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, Text, ForeignKey
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import Base
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class Property(Base):
@@ -10,8 +14,8 @@ class Property(Base):
     id = Column(String, primary_key=True, index=True)
     external_code = Column(String, unique=True, nullable=False, index=True)
     client_code = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
     registration_date = Column(DateTime, nullable=True)
     last_update_date = Column(DateTime, nullable=True)
 
@@ -96,7 +100,7 @@ class Photo(Base):
     is_primary = Column(Boolean, default=False, nullable=False, index=True)
     type = Column(String, nullable=True)
     order = Column(Integer, default=0, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
 
     # Relationships
     property = relationship("Property", back_populates="photos")

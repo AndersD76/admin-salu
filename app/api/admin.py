@@ -1,15 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.core.database import get_db, SessionLocal
+from app.core.database import get_db
 from app.core.security import get_current_admin
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.property import Property, Photo
-from app.models.contact import Contact
+from app.models.contact import Contact, ContactStatus
 from app.models.broker import Broker
 from app.models.import_log import ImportLog
 from app.models.favorites import Favorite
 from app.models.notification import Notification, NotificationType
+from app.schemas import (
+    UserResponse, UserListResponse,
+    PropertyResponse, PropertyListResponse,
+    ContactResponse, ContactListResponse,
+    BrokerResponse, BrokerListResponse,
+    ImportLogResponse, DashboardResponse,
+    ContactStatusUpdate,
+)
 from app.core.config import settings
 import uuid
 from datetime import datetime
@@ -17,8 +25,10 @@ from typing import Optional
 
 router = APIRouter()
 
+MAX_PAGE_LIMIT = 200
 
-@router.get("/dashboard")
+
+@router.get("/dashboard", response_model=DashboardResponse)
 async def get_dashboard_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin)
@@ -76,7 +86,8 @@ async def get_dashboard_stats(
             {"purpose": p, "count": c} for p, c in properties_by_purpose
         ],
         "contacts_by_status": [
-            {"status": s.value, "count": c} for s, c in contacts_by_status
+            {"status": s.value if hasattr(s, 'value') else str(s), "count": c}
+            for s, c in contacts_by_status
         ],
         "recent_contacts": recent_contacts,
         "top_properties": top_properties
@@ -127,24 +138,31 @@ async def get_import_logs(
         ImportLog.started_at.desc()
     ).limit(20).all()
 
-    return {"logs": logs}
+    return {"logs": [ImportLogResponse.model_validate(log) for log in logs]}
 
 
 # ===== USERS MANAGEMENT =====
 
-@router.get("/users")
+@router.get("/users", response_model=UserListResponse)
 async def list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
-    skip: int = 0,
-    limit: int = 50,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=MAX_PAGE_LIMIT),
     role: Optional[str] = None
 ):
     """List all users (Admin only)"""
     query = db.query(User)
 
     if role:
-        query = query.filter(User.role == role)
+        # Validar role contra enum
+        valid_roles = [r.value for r in UserRole]
+        if role.upper() not in valid_roles:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid role. Valid values: {valid_roles}"
+            )
+        query = query.filter(User.role == role.upper())
 
     total = query.count()
     users = query.offset(skip).limit(limit).all()
@@ -155,7 +173,7 @@ async def list_users(
     }
 
 
-@router.get("/users/{user_id}")
+@router.get("/users/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: str,
     db: Session = Depends(get_db),
@@ -190,12 +208,12 @@ async def delete_user(
 
 # ===== PROPERTIES MANAGEMENT =====
 
-@router.get("/properties")
+@router.get("/properties", response_model=PropertyListResponse)
 async def list_properties(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
-    skip: int = 0,
-    limit: int = 50,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=MAX_PAGE_LIMIT),
     is_active: Optional[bool] = None
 ):
     """List all properties (Admin only)"""
@@ -249,19 +267,26 @@ async def toggle_property_featured(
 
 # ===== CONTACTS MANAGEMENT =====
 
-@router.get("/contacts")
+@router.get("/contacts", response_model=ContactListResponse)
 async def list_contacts(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
-    skip: int = 0,
-    limit: int = 50,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=MAX_PAGE_LIMIT),
     status: Optional[str] = None
 ):
     """List all contacts (Admin only)"""
     query = db.query(Contact)
 
     if status:
-        query = query.filter(Contact.status == status)
+        # Validar status contra enum
+        valid_statuses = [s.value for s in ContactStatus]
+        if status.upper() not in valid_statuses:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status. Valid values: {valid_statuses}"
+            )
+        query = query.filter(Contact.status == status.upper())
 
     total = query.count()
     contacts = query.order_by(Contact.created_at.desc()).offset(skip).limit(limit).all()
@@ -275,29 +300,37 @@ async def list_contacts(
 @router.patch("/contacts/{contact_id}/status")
 async def update_contact_status(
     contact_id: str,
-    status: str,
+    body: ContactStatusUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin)
 ):
     """Update contact status (Admin only)"""
+    # Validar status contra enum
+    valid_statuses = [s.value for s in ContactStatus]
+    if body.status.upper() not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status. Valid values: {valid_statuses}"
+        )
+
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
 
-    contact.status = status
+    contact.status = body.status.upper()
     db.commit()
 
-    return {"message": "Contact status updated", "status": status}
+    return {"message": "Contact status updated", "status": body.status.upper()}
 
 
 # ===== BROKERS MANAGEMENT =====
 
-@router.get("/brokers")
+@router.get("/brokers", response_model=BrokerListResponse)
 async def list_brokers(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
-    skip: int = 0,
-    limit: int = 50
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=MAX_PAGE_LIMIT)
 ):
     """List all brokers (Admin only)"""
     query = db.query(Broker)
@@ -332,29 +365,33 @@ async def toggle_broker_active(
 
 @router.get("/cron/status")
 async def cron_status(
+    db: Session = Depends(get_db),
     x_cron_secret: Optional[str] = Header(None, alias="X-Cron-Secret")
 ):
     """
     Verifica o status da ultima sincronizacao.
+    Requer X-Cron-Secret header quando CRON_SECRET esta configurado.
     """
-    if settings.CRON_SECRET and x_cron_secret != settings.CRON_SECRET:
+    if not settings.CRON_SECRET:
+        raise HTTPException(
+            status_code=503,
+            detail="Cron secret not configured"
+        )
+
+    if x_cron_secret != settings.CRON_SECRET:
         raise HTTPException(status_code=401, detail="Invalid cron secret")
 
-    db = SessionLocal()
-    try:
-        last_log = db.query(ImportLog).order_by(
-            ImportLog.started_at.desc()
-        ).first()
+    last_log = db.query(ImportLog).order_by(
+        ImportLog.started_at.desc()
+    ).first()
 
-        if not last_log:
-            return {"status": "no_imports", "message": "Nenhuma importacao realizada ainda"}
+    if not last_log:
+        return {"status": "no_imports", "message": "Nenhuma importacao realizada ainda"}
 
-        return {
-            "status": last_log.status,
-            "started_at": last_log.started_at.isoformat() if last_log.started_at else None,
-            "completed_at": last_log.completed_at.isoformat() if last_log.completed_at else None,
-            "properties_count": last_log.properties_count,
-            "error_message": last_log.error_message
-        }
-    finally:
-        db.close()
+    return {
+        "status": last_log.status,
+        "started_at": last_log.started_at.isoformat() if last_log.started_at else None,
+        "completed_at": last_log.completed_at.isoformat() if last_log.completed_at else None,
+        "properties_count": last_log.properties_count,
+        "error_message": last_log.error_message
+    }

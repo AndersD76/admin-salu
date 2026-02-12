@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # App
     APP_NAME: str = "Admin Salu - Painel Administrativo"
     APP_VERSION: str = "1.0.0"
-    DEBUG: bool = True
+    DEBUG: bool = False
 
     # Database
     DATABASE_URL: str
@@ -43,8 +43,11 @@ class Settings(BaseSettings):
     # Cron/Scheduler
     CRON_SECRET: str = ""
 
-    # CORS
-    ALLOWED_ORIGINS: List[str] = ["*"]
+    # CORS (configure via env: ALLOWED_ORIGINS=["https://app.salu.com"])
+    ALLOWED_ORIGINS: List[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ]
 
     # Server
     HOST: str = "0.0.0.0"

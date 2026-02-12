@@ -3,10 +3,14 @@ Notification model - Sistema de notificacoes do app
 """
 from sqlalchemy import Column, String, DateTime, Text, Boolean, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import enum
 import uuid
 from app.core.database import Base
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class NotificationType(enum.Enum):
@@ -52,7 +56,7 @@ class Notification(Base):
     type = Column(SQLEnum(NotificationType), nullable=False)
     link = Column(String, nullable=True)
     is_read = Column(Boolean, default=False, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
 
     # Contexto adicional (IDs relacionados)
     proposal_id = Column(String, nullable=True)

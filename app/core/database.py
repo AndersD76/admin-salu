@@ -1,6 +1,5 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from typing import Generator
 import os
 from dotenv import load_dotenv
@@ -23,8 +22,10 @@ engine = create_engine(
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Base class for models
-Base = declarative_base()
+
+# Base class for models (SQLAlchemy 2.0 style)
+class Base(DeclarativeBase):
+    pass
 
 
 def get_db() -> Generator:
@@ -36,6 +37,18 @@ def get_db() -> Generator:
         yield db
     finally:
         db.close()
+
+
+def check_db_connection() -> bool:
+    """
+    Check if database connection is healthy
+    """
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    except Exception:
+        return False
 
 
 def init_db():

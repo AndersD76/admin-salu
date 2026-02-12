@@ -1,8 +1,12 @@
 from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import enum
 from app.core.database import Base
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class ContactType(enum.Enum):
@@ -41,8 +45,8 @@ class Contact(Base):
     status = Column(SQLEnum(ContactStatus), default=ContactStatus.NEW, nullable=False, index=True)
     notes = Column(Text, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
 
     # Relationships
     user = relationship("User", back_populates="contacts")
