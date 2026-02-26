@@ -189,6 +189,7 @@ class DashboardOverview(BaseModel):
     total_contacts: int
     total_users: int
     total_brokers: int
+    total_evaluations: int = 0
 
 
 class TypeCount(BaseModel):
@@ -213,6 +214,40 @@ class DashboardResponse(BaseModel):
     contacts_by_status: List[StatusCount]
     recent_contacts: List[ContactResponse]
     top_properties: List[PropertyResponse]
+
+
+# ===== Evaluation Schemas =====
+
+class EvaluationResponse(BaseModel):
+    id: str
+    city: str
+    neighborhood: Optional[str] = None
+    property_type: str
+    purpose: str
+    usable_area: float
+    bedrooms: int
+    bathrooms: int
+    parking_spaces: int
+    has_pool: bool
+    has_gym: bool
+    has_elevator: bool
+    has_security: bool
+    estimated_price: Optional[float] = None
+    price_per_sqm: Optional[float] = None
+    min_price: Optional[float] = None
+    max_price: Optional[float] = None
+    confidence: Optional[str] = None
+    similar_count: int
+    data_sources: Optional[str] = None
+    ip_address: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class EvaluationListResponse(BaseModel):
+    total: int
+    evaluations: List[EvaluationResponse]
 
 
 # ===== Auth Schemas =====

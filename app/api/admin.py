@@ -10,6 +10,7 @@ from app.models.broker import Broker
 from app.models.import_log import ImportLog
 from app.models.favorites import Favorite
 from app.models.notification import Notification, NotificationType
+from app.models.evaluation import Evaluation
 from app.schemas import (
     UserResponse, UserListResponse,
     PropertyResponse, PropertyListResponse,
@@ -17,6 +18,7 @@ from app.schemas import (
     BrokerResponse, BrokerListResponse,
     ImportLogResponse, DashboardResponse,
     ContactStatusUpdate,
+    EvaluationResponse, EvaluationListResponse,
 )
 from app.core.config import settings
 import uuid
@@ -40,6 +42,7 @@ async def get_dashboard_stats(
     total_contacts = db.query(Contact).count()
     total_users = db.query(User).count()
     total_brokers = db.query(Broker).count()
+    total_evaluations = db.query(Evaluation).count()
 
     # Properties by type
     properties_by_type = db.query(
@@ -77,7 +80,8 @@ async def get_dashboard_stats(
             "active_properties": active_properties,
             "total_contacts": total_contacts,
             "total_users": total_users,
-            "total_brokers": total_brokers
+            "total_brokers": total_brokers,
+            "total_evaluations": total_evaluations
         },
         "properties_by_type": [
             {"type": t, "count": c} for t, c in properties_by_type
@@ -359,6 +363,86 @@ async def toggle_broker_active(
     db.commit()
 
     return {"message": f"Broker {'activated' if broker.is_active else 'deactivated'}", "is_active": broker.is_active}
+
+
+# ===== EVALUATIONS (Avaliacoes de Imoveis) =====
+
+@router.get("/evaluations", response_model=EvaluationListResponse)
+async def list_evaluations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=MAX_PAGE_LIMIT),
+    city: Optional[str] = None,
+    property_type: Optional[str] = None,
+):
+    """List all property evaluations (Admin only)"""
+    query = db.query(Evaluation)
+
+    if city:
+        query = query.filter(Evaluation.city.ilike(f"%{city}%"))
+    if property_type:
+        query = query.filter(
+            Evaluation.property_type.ilike(f"%{property_type}%")
+        )
+
+    total = query.count()
+    evaluations = query.order_by(
+        Evaluation.created_at.desc()
+    ).offset(skip).limit(limit).all()
+
+    return {
+        "total": total,
+        "evaluations": evaluations
+    }
+
+
+@router.get("/evaluations/stats")
+async def evaluation_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+):
+    """Get evaluation statistics (Admin only)"""
+    total = db.query(Evaluation).count()
+
+    by_city = db.query(
+        Evaluation.city,
+        func.count(Evaluation.id).label('count')
+    ).group_by(Evaluation.city).order_by(
+        func.count(Evaluation.id).desc()
+    ).limit(10).all()
+
+    by_type = db.query(
+        Evaluation.property_type,
+        func.count(Evaluation.id).label('count')
+    ).group_by(Evaluation.property_type).order_by(
+        func.count(Evaluation.id).desc()
+    ).all()
+
+    by_purpose = db.query(
+        Evaluation.purpose,
+        func.count(Evaluation.id).label('count')
+    ).group_by(Evaluation.purpose).all()
+
+    avg_price = db.query(
+        func.avg(Evaluation.estimated_price)
+    ).filter(
+        Evaluation.estimated_price.isnot(None)
+    ).scalar() or 0
+
+    return {
+        "total": total,
+        "by_city": [
+            {"city": c, "count": n} for c, n in by_city
+        ],
+        "by_type": [
+            {"type": t, "count": n} for t, n in by_type
+        ],
+        "by_purpose": [
+            {"purpose": p, "count": n} for p, n in by_purpose
+        ],
+        "avg_estimated_price": round(avg_price, 2),
+    }
 
 
 # ===== CRON ENDPOINT (para Railway/schedulers externos) =====

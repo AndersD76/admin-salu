@@ -6,6 +6,7 @@ from app.models.broker import Broker
 from app.models.import_log import ImportLog
 from app.models.favorites import Favorite
 from app.models.notification import Notification, NotificationType
+from app.models.evaluation import Evaluation
 
 __all__ = [
     "User",
@@ -20,4 +21,5 @@ __all__ = [
     "Favorite",
     "Notification",
     "NotificationType",
+    "Evaluation",
 ]

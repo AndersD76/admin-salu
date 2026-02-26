@@ -64,6 +64,7 @@ def init_db():
         Favorite,
         Notification,
         ImportLog,
+        Evaluation,
     )
 
     Base.metadata.create_all(bind=engine)
