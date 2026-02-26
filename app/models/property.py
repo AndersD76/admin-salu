@@ -80,8 +80,13 @@ class Property(Base):
     # Fonte do XML (ValueGaia, ChavesNaMao, etc)
     xml_source = Column(String, nullable=True, index=True)
 
+    # URLs extras
+    video_url = Column(String, nullable=True)
+    tour_360_url = Column(String, nullable=True)
+
     # Foreign Keys
     broker_id = Column(String, ForeignKey("brokers.id"), nullable=True, index=True)
+    building_id = Column(String, ForeignKey("buildings.id"), nullable=True, index=True)
 
     # Relationships
     photos = relationship("Photo", back_populates="property", cascade="all, delete-orphan")
